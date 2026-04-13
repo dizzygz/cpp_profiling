@@ -62,16 +62,16 @@ UniqueFilePtr make_unique_file(const char *filename, const char *mode)
 // ============================================================================
 
 // Forward declaration for SQLite
-struct sqlite3;
+// struct sqlite3;
 // int sqlite3_open(const char *, sqlite3 **);
 // int sqlite3_close(sqlite3 *);
 // int sqlite3_exec(sqlite3 *, const char *, int (*callback)(void *, int, char **, char **), void *,
 //                 char **);
-const char *sqlite3_errmsg(sqlite3 *);
-int sqlite3_finalize(sqlite3_stmt *);
-struct sqlite3_stmt;
-int sqlite3_prepare_v2(sqlite3 *, const char *, int, sqlite3_stmt **, const char **);
-int sqlite3_step(sqlite3_stmt *);
+// const char *sqlite3_errmsg(sqlite3 *);
+// int sqlite3_finalize(sqlite3_stmt *);
+// struct sqlite3_stmt;
+// int sqlite3_prepare_v2(sqlite3 *, const char *, int, sqlite3_stmt **, const char **);
+// int sqlite3_step(sqlite3_stmt *);
 // int sqlite3_column_int(sqlite3_stmt *, int);
 // const char *sqlite3_column_text(sqlite3_stmt *, int);
 
