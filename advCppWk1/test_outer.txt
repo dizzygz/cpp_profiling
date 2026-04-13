@@ -1,0 +1,2 @@
+Outer file opened
+Back to outer scope
