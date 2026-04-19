@@ -122,7 +122,169 @@ template <typename T, std::size_t N> class RingBuffer
 
    alignas(cache_line_size) std::atomic<size_type> head_{0};
    alignas(cache_line_size) std::atomic<size_type> tail_{0};
+   /*
+    Great question — this is exactly the kind of subtlety that matters in **lock‑free SPSC code**.
 
+   I’ll explain:
+
+   1.  **What `memory_order_relaxed` and `memory_order_acquire` mean**
+   2.  **Why different orders are used in this function**
+   3.  **Why this is correct (and intentional)**
+
+   ***
+
+   ## 1. What the memory orders mean (intuitively)
+
+   ### `std::memory_order_relaxed`
+
+   *   Guarantees **atomicity only**
+   *   **No ordering** or visibility guarantees with respect to other memory
+   *   Fastest option
+   *   Use when you only need a *numeric value*, not synchronization
+
+   Think:
+
+   > “I just want the value; I don’t care about other memory yet.”
+
+   ***
+
+   ### `std::memory_order_acquire`
+
+   *   Prevents **later reads/writes** from being reordered *before* this load
+   *   Ensures you see **everything published by the other thread** before it did a matching
+   `release`
+
+   Think:
+
+   > “If I see this value, I must also see what came before it.”
+
+   ***
+
+   ## 2. The code in question
+
+   ```cpp
+   [[nodiscard]] bool isFull() const noexcept
+   {
+       const auto head = head_.load(std::memory_order_relaxed);
+       const auto tail = tail_.load(std::memory_order_acquire);
+       return (head - tail) == N;
+   }
+   ```
+
+   ### Who owns what in SPSC
+
+   *   **Producer** owns `head_`
+   *   **Consumer** owns `tail_`
+
+   This matters a lot.
+
+   ***
+
+   ## 3. Why `head` is loaded with `relaxed`
+
+   ```cpp
+   const auto head = head_.load(std::memory_order_relaxed);
+   ```
+
+   *   `head_` is written **only by the producer**
+   *   In `isFull()`, this is called by the **producer**
+   *   No other thread writes `head_`
+
+   ✅ No synchronization needed
+   ✅ We only need the numeric value
+   ✅ `relaxed` is sufficient and optimal
+
+   ***
+
+   ## 4. Why `tail` is loaded with `acquire`
+
+   ```cpp
+   const auto tail = tail_.load(std::memory_order_acquire);
+   ```
+
+   *   `tail_` is written by the **consumer**
+   *   The producer must see:
+       *   the updated `tail_`, **and**
+       *   all memory effects that happened before the consumer advanced `tail_`
+
+   The consumer will typically do:
+
+   ```cpp
+   tail_.store(newTail, std::memory_order_release);
+   ```
+
+   This creates a **release–acquire pair**:
+
+   | Consumer              | Producer             |
+   | --------------------- | -------------------- |
+   | `store(..., release)` | `load(..., acquire)` |
+
+   ✅ Ensures the producer sees freed slots correctly
+   ✅ Prevents reordering bugs
+   ✅ Makes lock‑free correctness possible
+
+   ***
+
+   ## 5. Why NOT use `acquire` for both?
+
+   You *could* do this:
+
+   ```cpp
+   head_.load(std::memory_order_acquire);
+   tail_.load(std::memory_order_acquire);
+   ```
+
+   But:
+
+   *   It adds unnecessary barriers
+   *   Slows hot paths
+   *   Provides **no extra correctness**
+
+   This code is **intentionally minimal**.
+
+   ***
+
+   ## 6. Why NOT use `relaxed` for both?
+
+   This would be **wrong**:
+
+   ```cpp
+   tail_.load(std::memory_order_relaxed); // ❌
+   ```
+
+   Because the producer might:
+
+   *   See an updated `tail_`
+   *   But **not see the consumer’s earlier slot clears**
+   *   Leading to overwrite of unread data
+
+   ***
+
+   ## 7. One‑sentence explanation (commit‑comment friendly)
+
+   > `head_` is loaded relaxed because it is producer‑owned; `tail_` is loaded with acquire to
+   synchronize with the consumer’s release store and ensure freed slots are visible.
+
+   ***
+
+   ## 8. Mental model (easy to remember)
+
+   | Variable | Who writes | Load order | Why                         |
+   | -------- | ---------- | ---------- | --------------------------- |
+   | `head_`  | producer   | relaxed    | No cross‑thread sync needed |
+   | `tail_`  | consumer   | acquire    | Must see consumer’s release |
+
+   ***
+
+   If you want, I can:
+
+   *   Walk through a **push/pop timeline**
+   *   Show what breaks if `tail` is relaxed
+   *   Explain why this works specifically for **SPSC but not MPMC**
+
+   Just say the word.
+
+    * */
    [[nodiscard]] bool isFull() const noexcept
    {
       const auto head = head_.load(std::memory_order_relaxed);
