@@ -110,7 +110,7 @@ TEST(push_pop_multiple)
 
 TEST(wrap_around)
 {
-   RingBuffer<int, 16> buffer; // Effective capacity is N-1 = 15
+   RingBuffer<int, 16> buffer; // Effective capacity is N = 16
 
    // Push items until buffer is full
    int count = 0;
@@ -118,7 +118,7 @@ TEST(wrap_around)
    {
       ++count;
    }
-   ASSERT(count == 15); // Buffer should hold 15 items (N-1)
+   ASSERT(count == 16); // Buffer should hold 15 items (N-1)
 
    // Buffer is now full, push should fail
    int fail_val = 100;
@@ -134,7 +134,7 @@ TEST(wrap_around)
       ASSERT(*val == expected);
       ++expected;
    }
-   ASSERT(expected == 15);
+   ASSERT(expected == 16);
 
    // Buffer is now empty
    ASSERT(buffer.empty() == true);
